@@ -1,0 +1,73 @@
+﻿//---------------------------------------------------------------------------
+
+#include <vcl.h>
+#pragma hdrstop
+
+#include "Unit1.h"
+//---------------------------------------------------------------------------
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+TForm1 *Form1;
+//---------------------------------------------------------------------------
+
+void AppendFileBinary(const UnicodeString &sourceFile, const UnicodeString &destFile)
+{
+	if (!FileExists(sourceFile))
+	{
+		ShowMessage("Файл1 не знайдено!");
+		return;
+	}
+
+	// Відкриваємо файл1 тільки для читання
+	std::unique_ptr<TFileStream> src(new TFileStream(sourceFile, fmOpenRead | fmShareDenyWrite));
+
+	// Відкриваємо файл2 для допису (fmOpenReadWrite + переміщаємося в кінець)
+	std::unique_ptr<TFileStream> dst(new TFileStream(destFile, fmOpenReadWrite | fmShareDenyWrite));
+
+	dst->Seek((__int64)0, TSeekOrigin::soEnd); // 👉 ставимо курсор у кінець файла2
+
+	// Буфер для читання (швидке копіювання)
+	const int BufSize = 4096;
+	char buffer[BufSize];
+	int bytes;
+
+	while ((bytes = src->Read(buffer, BufSize)) > 0)
+		dst->Write(buffer, bytes);
+
+	ShowMessage("✔ Файл1 додано в кінець файл2 (байтами)");
+}
+
+void __fastcall TForm1::Button1Click(TObject *Sender)
+{
+	// ❗ Якщо файл2 не існує — створимо його порожнім
+	if (!FileExists("file2.bin"))
+		TFile::WriteAllBytes("file2.bin", nullptr, 0);
+
+	AppendFileBinary("file1.bin", "file2.bin");
+}
+//---------------------------------------------------------------------------
+__fastcall TForm1::TForm1(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::Button1Click(TObject *Sender)
+{
+
+//	UnicodeString appDir = ExtractFilePath(Application->ExeName);
+
+
+	if (OpenDialog1->Execute())
+	{
+		UnicodeString file1 = OpenDialog1->FileName;
+
+		if (SaveDialog1->Execute())
+		{
+			UnicodeString file2 = SaveDialog1->FileName;
+
+
+			 AppendFileBinary(file1, file2);
+        }
+	}
+}
+//---------------------------------------------------------------------------

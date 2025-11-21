@@ -1,0 +1,72 @@
+object Form2: TForm2
+  Left = 0
+  Top = 0
+  Caption = 'Sec_lab_10101'
+  ClientHeight = 507
+  ClientWidth = 776
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -12
+  Font.Name = 'Segoe UI'
+  Font.Style = []
+  TextHeight = 15
+  object RUN: TButton
+    Left = 48
+    Top = 231
+    Width = 665
+    Height = 25
+    Caption = 'RUN'
+    TabOrder = 0
+    OnClick = RUNClick
+  end
+  object Edit1: TEdit
+    Left = 48
+    Top = 8
+    Width = 665
+    Height = 162
+    TabOrder = 1
+    Text = 'Edit1'
+  end
+  object Edit2: TEdit
+    Left = 400
+    Top = 192
+    Width = 313
+    Height = 23
+    TabOrder = 2
+    Text = 'Edit2'
+  end
+  object Encrypt: TRadioButton
+    Left = 64
+    Top = 195
+    Width = 113
+    Height = 17
+    Caption = 'Encrypt'
+    TabOrder = 3
+  end
+  object RadioButton2: TRadioButton
+    Left = 248
+    Top = 195
+    Width = 113
+    Height = 17
+    Caption = 'RadioButton2'
+    TabOrder = 4
+  end
+  object Save: TButton
+    Left = 48
+    Top = 448
+    Width = 665
+    Height = 25
+    Caption = 'Save'
+    TabOrder = 5
+    OnClick = SaveClick
+  end
+  object Edit3: TEdit
+    Left = 48
+    Top = 280
+    Width = 665
+    Height = 145
+    TabOrder = 6
+    Text = 'Edit3'
+  end
+end

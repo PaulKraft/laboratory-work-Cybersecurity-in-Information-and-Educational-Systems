@@ -1,0 +1,53 @@
+﻿//---------------------------------------------------------------------------
+
+#include <vcl.h>
+#pragma hdrstop
+
+#include "Unit1.h"
+#include "Unit2.h"
+
+#include <System.IOUtils.hpp>
+//---------------------------------------------------------------------------
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+TForm1* Form1;
+
+
+//---------------------------------------------------------------------------
+__fastcall TForm1::TForm1(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+//
+void __fastcall TForm1::SetStartupValue(int v)
+{
+	Label5->Caption = IntToStr(v);
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::ButtonBackClick(TObject *Sender)
+{
+	this->Close();       // це знищить Form2
+    Form2->Show();       // але Form1 лишається
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::FormClose(TObject *Sender, TCloseAction &Action)
+{
+
+	Form1->Close();
+	Form2->Close();
+   	Application->Terminate();
+}
+
+
+
+void __fastcall TForm1::Button1Click(TObject *Sender)
+{
+		int day = SpinEdit1->Value;
+		int month = SpinEdit2->Value;
+		int year = StrToIntDef(Edit1->Text, 1970);
+		TDateTime dt(EncodeDate(year, month, day));
+		TFile::SetCreationTime("id.pas", dt);
+        TFile::SetLastWriteTime("id.pas", dt);
+}
+//---------------------------------------------------------------------------
+

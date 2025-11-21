@@ -1,0 +1,84 @@
+object Form1: TForm1
+  Left = 0
+  Top = 0
+  Caption = 'Install'
+  ClientHeight = 388
+  ClientWidth = 375
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -12
+  Font.Name = 'Segoe UI'
+  Font.Style = []
+  TextHeight = 15
+  object Label1: TLabel
+    Left = 47
+    Top = 56
+    Width = 69
+    Height = 15
+    Caption = 'simple install'
+  end
+  object Label2: TLabel
+    Left = 200
+    Top = 56
+    Width = 74
+    Height = 15
+    Caption = 'manual install'
+  end
+  object Button1: TButton
+    Left = 47
+    Top = 88
+    Width = 86
+    Height = 25
+    Caption = 'Install'
+    TabOrder = 0
+  end
+  object Button2: TButton
+    Left = 200
+    Top = 88
+    Width = 118
+    Height = 25
+    Caption = 'Copy file'
+    TabOrder = 1
+  end
+  object Button3: TButton
+    Left = 200
+    Top = 128
+    Width = 118
+    Height = 25
+    Caption = 'Scan sys config'
+    TabOrder = 2
+  end
+  object Button4: TButton
+    Left = 200
+    Top = 168
+    Width = 118
+    Height = 25
+    Caption = 'write hash to file'
+    TabOrder = 3
+  end
+  object Button5: TButton
+    Left = 200
+    Top = 208
+    Width = 118
+    Height = 25
+    Caption = 'Create open key'
+    TabOrder = 4
+  end
+  object Button6: TButton
+    Left = 200
+    Top = 248
+    Width = 118
+    Height = 25
+    Caption = 'Generate Signature'
+    TabOrder = 5
+  end
+  object Button7: TButton
+    Left = 200
+    Top = 288
+    Width = 118
+    Height = 25
+    Caption = 'write to win register'
+    TabOrder = 6
+  end
+end

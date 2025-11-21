@@ -1,0 +1,92 @@
+object Form2: TForm2
+  Left = 0
+  Top = 0
+  Caption = 'Sec_lab_10101'
+  ClientHeight = 459
+  ClientWidth = 776
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -12
+  Font.Name = 'Segoe UI'
+  Font.Style = []
+  TextHeight = 15
+  object RUN: TButton
+    Left = 48
+    Top = 280
+    Width = 665
+    Height = 25
+    Caption = 'RUN'
+    TabOrder = 0
+    OnClick = RUNClick
+  end
+  object Edit1: TEdit
+    Left = 48
+    Top = 162
+    Width = 665
+    Height = 23
+    TabOrder = 1
+  end
+  object Edit2: TEdit
+    Left = 400
+    Top = 234
+    Width = 313
+    Height = 23
+    TabOrder = 2
+  end
+  object Encrypt: TRadioButton
+    Left = 48
+    Top = 235
+    Width = 113
+    Height = 17
+    Caption = 'Encrypt'
+    TabOrder = 3
+  end
+  object Decrypt: TRadioButton
+    Left = 176
+    Top = 235
+    Width = 113
+    Height = 17
+    Caption = 'Decrypt'
+    TabOrder = 4
+  end
+  object Edit3: TEdit
+    Left = 48
+    Top = 353
+    Width = 665
+    Height = 23
+    TabOrder = 5
+  end
+  object StaticText1: TStaticText
+    Left = 48
+    Top = 328
+    Width = 63
+    Height = 19
+    Caption = 'output text'
+    TabOrder = 6
+  end
+  object StaticText2: TStaticText
+    Left = 400
+    Top = 209
+    Width = 53
+    Height = 19
+    Caption = 'input key'
+    TabOrder = 7
+  end
+  object StaticText3: TStaticText
+    Left = 48
+    Top = 137
+    Width = 55
+    Height = 19
+    Caption = 'input text'
+    TabOrder = 8
+  end
+  object OpenDialog1: TOpenDialog
+    Left = 304
+    Top = 232
+  end
+  object SaveDialog1: TSaveDialog
+    Left = 8
+    Top = 232
+  end
+end

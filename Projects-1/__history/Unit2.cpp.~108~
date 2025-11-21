@@ -1,0 +1,237 @@
+﻿//---------------------------------------------------------------------------
+
+#include <vcl.h>
+#include <System.Classes.hpp>
+#include <Clipbrd.hpp>
+
+#pragma hdrstop
+
+#include "Unit2.h"
+//---------------------------------------------------------------------------
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+TForm2 *Form2;
+//---------------------------------------------------------------------------
+__fastcall TForm2::TForm2(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+//---------------------------------------------------------------------------
+static UnicodeString xor_en(UnicodeString &text, int key)
+{
+	UnicodeString result = "";
+	for(int i =1; i <= text.Length(); i++){
+	 wchar_t ch = text[i] ^ key;
+     result += ch;
+	}
+	return result;
+}
+
+//---------------------------------------------------------------------------
+
+void __fastcall TForm2::RUNClick(TObject *Sender)
+{
+ if(Encrypt->Checked){
+	UnicodeString inputText = Edit1->Text;
+	UnicodeString inputKey = Edit2->Text;
+	Edit3->Text = xor_en(inputText, StrToIntDef(inputKey, 0));
+
+     //////////////////////
+	  // 1) XOR-шифруємо текст і кладемо результат в Edit3 + в буфер обміну
+	int key = StrToInt(Edit2->Text);          // Convert.ToInt32(textBox2.Text)
+//    Edit3->Text = xor_en(Edit1->Text, key);   // textBox3.Text = xor_en(...)
+
+    Clipboard()->AsText = Edit3->Text;        // Clipboard.SetText(...)
+
+    // 2) Обчислюємо довжину ключа, генеруємо випадкову позицію
+    int key_length = Edit2->Text.Length();    // довжина текстового ключа
+    int pos = 1 + Random(Edit3->Text.Length()); // аналог new Random().Next(1, ...)
+
+    // 3) Формуємо префікс: "<довжина_ключа>|<позиція>|"
+    UnicodeString file;
+    file = IntToStr(key_length) + "|" + IntToStr(pos) + "|";
+
+    // 4) Вставляємо ключ (Edit2->Text) всередину зашифрованого тексту (Edit3->Text)
+    UnicodeString tmp = Edit3->Text;
+	tmp.Insert(Edit2->Text, pos);   // Insert(mutating): вставляє ключ у позицію pos
+	Edit3->Text = tmp;
+
+	// 5) Додаємо модифікований шифротекст до префіксу
+	file += Edit3->Text;
+
+	// 6) Показуємо фінальний результат
+	Edit3->Text = file;
+
+
+	/////////////////////////////////////
+//	UnicodeString fileText =  file;
+//	UTF8String utf8 = UTF8String(fileText);
+//
+//	TFileStream *fileCrypto = new TFileStream("test.txt", fmCreate | fmOpenWrite);
+//
+//
+//	fileCrypto->Write(utf8.c_str(), utf8.Length());
+//
+//	delete fileCrypto;
+  // Відкрити SaveDialog
+    if (SaveDialog1->Execute())
+    {
+        // Текст, який ти хочеш зберегти
+        UnicodeString fileText = file;
+
+        // Конвертація у UTF-8
+        UTF8String utf8 = UTF8String(fileText);
+
+        // Створення потоку для запису у вибраний файл
+        TFileStream *fileCrypto = new TFileStream(
+            SaveDialog1->FileName,
+            fmCreate | fmOpenWrite
+        );
+
+        // Запис UTF-8 байтів
+        fileCrypto->Write(utf8.c_str(), utf8.Length());
+
+        // Закриття файла
+        delete fileCrypto;
+
+        ShowMessage("file already saved!");
+    }
+
+
+
+ }
+
+ if(Decrypt->Checked){
+	UnicodeString inputText = Edit1->Text;
+	UnicodeString inputKey = Edit2->Text;
+	Edit3->Text =  inputKey + inputText ;
+
+    if (OpenDialog1->Execute())
+	{
+
+
+        UnicodeString fileName = OpenDialog1->FileName;
+
+		TStreamReader *reader = new TStreamReader(fileName, TEncoding::UTF8);
+
+        UnicodeString a3 = reader->ReadToEnd();
+
+        delete reader;
+		//ShowMessage(a3);
+
+		Edit1->Text = a3;
+
+
+
+		////////////////////////////
+
+//        UnicodeString a3 = reader->ReadLine();
+
+    // 2. Розбираємо "<a1>|<a2>|<cipher_with_key>"
+    // Знаходимо першу '|'
+    int p1 = a3.Pos("|");
+    if (p1 == 0)
+		throw Exception("Invalid string format (missing first '|')");
+
+	UnicodeString sA1 = a3.SubString(1, p1 -1); // split[0]
+
+    // Відрізаємо першу частину: "<a2>|<cipher...>"
+    UnicodeString rest = a3.SubString(p1 + 1, a3.Length() - p1);
+
+    // Знаходимо другу '|'
+    int p2 = rest.Pos("|");
+	if (p2 == 0)
+		throw Exception("Invalid string format (missing second '|')");
+
+	UnicodeString sA2 = rest.SubString(1, p2 -1); // split[1]
+
+    // Тепер у rest після другої '|' залишається чистий шифротекст з вбудованим ключем
+    a3 = rest.SubString(p2 + 1, rest.Length() - p2); // аналог Remove(0, ...)
+
+    // 3. Конвертація у числа
+    int a1 = StrToInt(sA1); // довжина ключа
+    int a2 = StrToInt(sA2); // позиція вставки ключа (УВАГА: в C# це 0-індекс)
+
+    // 4. Витягуємо ключ із зашифрованого рядка
+    // У C# було: a3.Substring(a2, a1) — startIndex = a2 (0-based), length = a1
+    // У UnicodeString індексація з 1, тому +1:
+    UnicodeString key = a3.SubString(a2, a1);
+
+    // 5. Видаляємо ключ із шифротексту
+    // У C# було: a3.Remove(a2, a1)
+    UnicodeString cipher = a3;
+    cipher.Delete(a2, a1);  // +1, бо 1-індексний рядок
+
+    // 6. Записуємо результати в поля
+    Edit2->Text = key;                          // textBox2.Text
+    Edit1->Text = cipher;                       // textBox1.Text
+	Edit3->Text =  xor_en(cipher, StrToIntDef(key, 0));
+
+
+    }
+
+}
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm2::SaveClick(TObject *Sender)
+{
+	  //////////////////////
+	  // 1) XOR-шифруємо текст і кладемо результат в Edit3 + в буфер обміну
+//	int key = StrToInt(Edit2->Text);          // Convert.ToInt32(textBox2.Text)
+////    Edit3->Text = xor_en(Edit1->Text, key);   // textBox3.Text = xor_en(...)
+//
+//    Clipboard()->AsText = Edit3->Text;        // Clipboard.SetText(...)
+//
+//    // 2) Обчислюємо довжину ключа, генеруємо випадкову позицію
+//    int key_length = Edit2->Text.Length();    // довжина текстового ключа
+//    int pos = 1 + Random(Edit3->Text.Length()); // аналог new Random().Next(1, ...)
+//
+//    // 3) Формуємо префікс: "<довжина_ключа>|<позиція>|"
+//    UnicodeString file;
+//    file = IntToStr(key_length) + "|" + IntToStr(pos) + "|";
+//
+//    // 4) Вставляємо ключ (Edit2->Text) всередину зашифрованого тексту (Edit3->Text)
+//    UnicodeString tmp = Edit3->Text;
+//	tmp.Insert(Edit2->Text, pos);   // Insert(mutating): вставляє ключ у позицію pos
+//	Edit3->Text = tmp;
+//
+//    // 5) Додаємо модифікований шифротекст до префіксу
+//	file += Edit3->Text;
+//
+//    // 6) Показуємо фінальний результат
+//	Edit3->Text = file;
+//
+//
+//	/////////////////////////////////////
+//
+//    if (SaveDialog1->Execute())
+//    {
+//        // Текст, який ти хочеш зберегти
+//        UnicodeString fileText = file;
+//
+//        // Конвертація у UTF-8
+//        UTF8String utf8 = UTF8String(fileText);
+//
+//        // Створення потоку для запису у вибраний файл
+//        TFileStream *fileCrypto = new TFileStream(
+//            SaveDialog1->FileName,
+//            fmCreate | fmOpenWrite
+//        );
+//
+//        // Запис UTF-8 байтів
+//        fileCrypto->Write(utf8.c_str(), utf8.Length());
+//
+//        // Закриття файла
+//        delete fileCrypto;
+//
+//        ShowMessage("file already saved! 11");
+//	}
+
+
+
+
+}
+
+//---------------------------------------------------------------------------
+
+

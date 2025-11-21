@@ -1,0 +1,39 @@
+object sec_lab_1: Tsec_lab_1
+  Size.Width = 726.000000000000000000
+  Size.Height = 535.000000000000000000
+  Size.PlatformDefault = False
+  object Genarate_crypt: TButton
+    Position.X = 456.000000000000000000
+    Position.Y = 176.000000000000000000
+    Size.Width = 137.000000000000000000
+    Size.Height = 57.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 0
+    Text = 'Genarate_crypt'
+    TextSettings.Trimming = None
+    OnClick = Genarate_cryptClick
+  end
+  object Edit1: TEdit
+    Touch.InteractiveGestures = [LongTap, DoubleTap]
+    TabOrder = 1
+    Position.X = 456.000000000000000000
+    Position.Y = 256.000000000000000000
+    Size.Width = 241.000000000000000000
+    Size.Height = 22.000000000000000000
+    Size.PlatformDefault = False
+  end
+  object ListBox1: TListBox
+    Position.X = 456.000000000000000000
+    Position.Y = 304.000000000000000000
+    Size.Width = 241.000000000000000000
+    Size.Height = 200.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 2
+    DisableFocusEffect = True
+    DefaultItemStyles.ItemStyle = ''
+    DefaultItemStyles.GroupHeaderStyle = ''
+    DefaultItemStyles.GroupFooterStyle = ''
+    Viewport.Width = 237.000000000000000000
+    Viewport.Height = 196.000000000000000000
+  end
+end

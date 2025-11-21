@@ -1,0 +1,138 @@
+object Form1: TForm1
+  Left = 0
+  Top = 0
+  Caption = 'Install'
+  ClientHeight = 176
+  ClientWidth = 193
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -12
+  Font.Name = 'Segoe UI'
+  Font.Style = []
+  TextHeight = 15
+  object Label1: TLabel
+    Left = 47
+    Top = 56
+    Width = 69
+    Height = 15
+    Caption = 'simple install'
+  end
+  object Label2: TLabel
+    Left = 200
+    Top = 56
+    Width = 74
+    Height = 15
+    Caption = 'manual install'
+    Visible = False
+  end
+  object Button1: TButton
+    Left = 47
+    Top = 88
+    Width = 86
+    Height = 25
+    Caption = 'Install'
+    TabOrder = 0
+    OnClick = Button1Click
+  end
+  object Button2: TButton
+    Left = 200
+    Top = 88
+    Width = 118
+    Height = 25
+    Caption = 'Copy file'
+    TabOrder = 1
+    Visible = False
+    OnClick = Button2Click
+  end
+  object Button3: TButton
+    Left = 200
+    Top = 136
+    Width = 118
+    Height = 25
+    Caption = 'Scan sys config'
+    TabOrder = 2
+    Visible = False
+    OnClick = Button3Click
+  end
+  object Button4: TButton
+    Left = 200
+    Top = 182
+    Width = 118
+    Height = 25
+    Caption = 'write hash to file'
+    TabOrder = 3
+    Visible = False
+    OnClick = Button4Click
+  end
+  object Button5: TButton
+    Left = 200
+    Top = 232
+    Width = 118
+    Height = 25
+    Caption = 'Create open key'
+    TabOrder = 4
+    Visible = False
+  end
+  object Button6: TButton
+    Left = 200
+    Top = 280
+    Width = 118
+    Height = 25
+    Caption = 'Generate Signature'
+    TabOrder = 5
+    Visible = False
+    OnClick = Button6Click
+  end
+  object Button7: TButton
+    Left = 200
+    Top = 320
+    Width = 118
+    Height = 25
+    Caption = 'write to win register'
+    TabOrder = 6
+    Visible = False
+  end
+  object Button8: TButton
+    Left = 32
+    Top = 367
+    Width = 118
+    Height = 25
+    Caption = 'Scan sys config'
+    TabOrder = 7
+    Visible = False
+    OnClick = Button3Click
+  end
+  object Button9: TButton
+    Left = 32
+    Top = 398
+    Width = 118
+    Height = 25
+    Caption = 'read hash to file'
+    TabOrder = 8
+    Visible = False
+    OnClick = Button4Click
+  end
+  object Button10: TButton
+    Left = 32
+    Top = 429
+    Width = 118
+    Height = 25
+    Caption = 'read Signature'
+    TabOrder = 9
+    Visible = False
+    OnClick = Button10Click
+  end
+  object SaveDialog1: TSaveDialog
+    Left = 344
+    Top = 88
+  end
+  object SaveDialog2: TSaveDialog
+    Left = 344
+    Top = 184
+  end
+  object SaveDialog3: TSaveDialog
+    Left = 344
+    Top = 232
+  end
+end

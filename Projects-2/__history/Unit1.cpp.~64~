@@ -1,0 +1,223 @@
+﻿#include <vcl.h>
+#pragma hdrstop
+
+#include <comdef.h>
+#include <Wbemidl.h>
+#pragma comment(lib, "wbemuuid.lib")
+
+#include "Unit1.h"
+
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+TForm1 *Form1;
+
+__fastcall TForm1::TForm1(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+
+
+
+
+void __fastcall TForm1::FormShow(TObject *Sender)
+{
+    HRESULT hres;
+
+    // очистити список перед новим заповненням
+    ComboBox1->Items->Clear();
+    UsbDisks.clear();
+
+    CoInitializeEx(0, COINIT_MULTITHREADED);
+
+    CoInitializeSecurity(NULL, -1, NULL, NULL,
+        RPC_C_AUTHN_LEVEL_DEFAULT,
+        RPC_C_IMP_LEVEL_IMPERSONATE,
+        NULL, EOAC_NONE, NULL);
+
+    IWbemLocator *pLoc = NULL;
+
+    hres = CoCreateInstance(
+        CLSID_WbemLocator, 0,
+        CLSCTX_INPROC_SERVER,
+        IID_IWbemLocator, (LPVOID *)&pLoc);
+
+    if (FAILED(hres)) return;
+
+    IWbemServices *pSvc = NULL;
+
+    hres = pLoc->ConnectServer(
+        SysAllocString(L"ROOT\\CIMV2"),
+        NULL, NULL, 0, NULL, 0, 0, &pSvc);
+
+    if (FAILED(hres)) return;
+
+    CoSetProxyBlanket(
+        pSvc,
+        RPC_C_AUTHN_WINNT,
+        RPC_C_AUTHZ_NONE,
+        NULL,
+        RPC_C_AUTHN_LEVEL_CALL,
+        RPC_C_IMP_LEVEL_IMPERSONATE,
+        NULL,
+        EOAC_NONE);
+
+    // ---- Запит: всі USB диски ----
+
+    IEnumWbemClassObject* pEnum = NULL;
+
+    hres = pSvc->ExecQuery(
+        SysAllocString(L"WQL"),
+//		SysAllocString(L"SELECT * FROM Win32_DiskDrive WHERE InterfaceType='USB'"),
+		SysAllocString(L"SELECT * FROM Win32_DiskDrive"),
+        WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+        NULL, &pEnum);
+
+    if (FAILED(hres)) return;
+
+    IWbemClassObject *pObj = NULL;
+    ULONG ret = 0;
+
+    while (pEnum->Next(WBEM_INFINITE, 1, &pObj, &ret) == S_OK)
+    {
+        VARIANT vtModel, vtSize, vtSerial, vtIndex, vtType;
+
+        VariantInit(&vtModel);
+        VariantInit(&vtSize);
+        VariantInit(&vtSerial);
+        VariantInit(&vtIndex);
+        VariantInit(&vtType);
+
+        // --- Отримання даних ---
+        pObj->Get(L"Model",       0, &vtModel,  0, 0);
+        pObj->Get(L"Size",        0, &vtSize,   0, 0);
+        pObj->Get(L"SerialNumber",0, &vtSerial, 0, 0);
+        pObj->Get(L"Index",       0, &vtIndex,  0, 0);
+        pObj->Get(L"MediaType",   0, &vtType,   0, 0);
+
+        UnicodeString Model     = vtModel.vt  == VT_BSTR ? vtModel.bstrVal  : L"";
+        UnicodeString Serial    = vtSerial.vt == VT_BSTR ? vtSerial.bstrVal : L"";
+        UnicodeString MediaType = vtType.vt   == VT_BSTR ? vtType.bstrVal   : L"Unknown";
+        int Index               = vtIndex.vt  == VT_I4   ? vtIndex.intVal   : -1;
+
+        // ---- ПРАВИЛЬНЕ ОТРИМАННЯ РОЗМІРУ ----
+        __int64 sizeBytes = 0;
+
+        if (vtSize.vt == VT_I8)
+        {
+            sizeBytes = vtSize.llVal;
+        }
+        else if (vtSize.vt == VT_BSTR)
+        {
+            try {
+                sizeBytes = StrToInt64(vtSize.bstrVal);
+            } catch (...) {
+                sizeBytes = 0;
+            }
+        }
+
+        double sizeGB = (double)sizeBytes / 1024.0 / 1024.0 / 1024.0;
+
+        // ---- Побудова PhysicalDrive ----
+        UnicodeString PhysicalPath = "\\.\\PhysicalDrive" + IntToStr(Index);
+
+
+
+        // ---- Зберігаємо ВСІ дані в масив ----
+        TUsbDiskInfo info;
+        info.PhysicalPath = PhysicalPath;
+		info.Model        = Model;
+        info.MediaType    = MediaType;
+		info.Serial       = Serial;
+        info.SizeGB       = sizeGB;
+
+        UsbDisks.push_back(info);
+
+        // ---- Додаємо тільки шлях у ComboBox ----
+        ComboBox1->Items->Add(PhysicalPath);
+
+        VariantClear(&vtModel);
+        VariantClear(&vtSize);
+        VariantClear(&vtSerial);
+        VariantClear(&vtIndex);
+        VariantClear(&vtType);
+
+        Serial = '';
+        pObj->Release();
+    }
+
+    pEnum->Release();
+    pSvc->Release();
+    pLoc->Release();
+    CoUninitialize();
+
+    // вибрати перший елемент, якщо є
+    if (ComboBox1->Items->Count > 0)
+        ComboBox1->ItemIndex = 0;
+}
+
+
+void __fastcall TForm1::ComboBox1Change(TObject *Sender)
+{
+	int idx = ComboBox1->ItemIndex;
+
+    if (idx < 0 || idx >= (int)UsbDisks.size()) return;
+
+
+    StaticText5->Caption = UsbDisks[idx].Model;
+	StaticText6->Caption = UsbDisks[idx].MediaType;
+	StaticText7->Caption = UsbDisks[idx].Serial;
+	StaticText8->Caption = FormatFloat("0.00", UsbDisks[idx].SizeGB) + " GB";
+
+	if (OpenDialog1->Execute()){
+
+        UnicodeString fileName = OpenDialog1->FileName;
+
+		TStreamReader *reader = new TStreamReader(fileName, TEncoding::UTF8);
+
+		UnicodeString origSerial = reader->ReadToEnd();
+
+		delete reader;
+
+		if(UsbDisks[idx].Serial == origSerial){
+			 ShowMessage("entered!");
+		}else{
+			 ShowMessage("fail!");
+             Application->Terminate();
+		}
+
+	}
+}
+
+//---------------------------------------------------------------------------
+
+
+
+void __fastcall TForm1::Button1Click(TObject *Sender)
+{
+  // Відкрити SaveDialog
+    if (SaveDialog1->Execute())
+	{
+
+        // Текст, який ти хочеш зберегти
+		UnicodeString fileText = UsbDisks[ComboBox1->ItemIndex].Serial;
+
+        // Конвертація у UTF-8
+        UTF8String utf8 = UTF8String(fileText);
+
+        // Створення потоку для запису у вибраний файл
+        TFileStream *fileCrypto = new TFileStream(
+            SaveDialog1->FileName,
+            fmCreate | fmOpenWrite
+        );
+
+        // Запис UTF-8 байтів
+        fileCrypto->Write(utf8.c_str(), utf8.Length());
+
+        // Закриття файла
+        delete fileCrypto;
+
+        ShowMessage("file already saved!");
+	}
+}
+//---------------------------------------------------------------------------
+

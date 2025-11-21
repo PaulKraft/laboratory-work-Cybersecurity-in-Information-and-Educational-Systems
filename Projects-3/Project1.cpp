@@ -1,0 +1,140 @@
+﻿// ---------------------------------------------------------------------------
+
+#include <vcl.h>
+#pragma hdrstop
+#include <tchar.h>
+
+#include <System.SysUtils.hpp>   // FileExists, IntToStr, EncodeDate
+#include <System.IOUtils.hpp>   // TFile
+#include <System.Classes.hpp>
+#include "Unit1.h"
+// ---------------------------------------------------------------------------
+USEFORM("Unit2.cpp", Form2);
+USEFORM("Unit1.cpp", Form1);
+// ---------------------------------------------------------------------------
+int count ; // це твій "цифровий пароль" або лічильник
+// ---------------------------------------------------------------------------
+
+int Load_file() {
+	UnicodeString file;
+	Randomize();
+	count = 9;
+
+	if (!FileExists("id.pas")) {
+		// UnicodeString file;
+
+		// 100 випадкових цифр (0..9)
+		for (int i = 0; i <= 99; ++i) {
+			int digit = Random(10); // 0..9
+			file += IntToStr(digit);
+		}
+
+		// У C# Insert(8, ...) — це позиція 8 у 0-based індексації.
+		// У UnicodeString індексація 1-based, тому 8 → 9
+		file.Insert(IntToStr(count), 9);
+
+		// Записати текст у файл у UTF-8 (можна й без кодування — це лише цифри)
+		TFile::WriteAllText("id.pas", file, TEncoding::UTF8);
+
+		// Встановити дату останньої модифікації: 1992-10-22
+		TDateTime dt(EncodeDate(1992, 10, 22));
+		TFile::SetCreationTime("id.pas", dt);
+		TFile::SetLastWriteTime("id.pas", dt);
+	}
+	else {
+
+		// 1) Перевіряємо дату останньої модифікації "id.pas"
+		TDateTime lastWrite = TFile::GetLastWriteTime("id.pas");
+		TDateTime creationTime = TFile::GetCreationTime("id.pas");
+		TDateTime marker(EncodeDate(1992, 10, 22)); // 1992-10-22
+
+		if (lastWrite == marker && creationTime == marker) {
+
+			UnicodeString line;
+			// 2) Зчитуємо перший рядок файла (аналог read.ReadLine())
+			{
+				TStreamReader *reader =
+					new TStreamReader("id.pas", TEncoding::UTF8);
+				line = reader->ReadToEnd();
+				delete reader;
+			}
+
+			// 3) Витягуємо 1 символ починаючи з позиції 8 (C# 0-based)
+			// У C#: Substring(8,1) -> 9-й символ.
+			// У UnicodeString SubString(start, len) 1-індексний, тому 8 → 9
+
+			UnicodeString digitStr = line.SubString(9, 1);
+			int tcount = StrToIntDef(digitStr, 1);
+			count = tcount - 1;
+
+
+			if(count < 0){
+				ShowMessage("Trial End");
+				Application->Terminate();
+			}
+
+			// 4) Генеруємо нові 100 випадкових цифр
+			UnicodeString newFile;
+			for (int i = 0; i <= 99; ++i) {
+				int d = Random(10); // 0..9
+				newFile += IntToStr(d);
+			}
+
+			// 5) Вставляємо count на позицію 8 (C#) → 9 (C++Builder)
+			newFile.Insert(IntToStr(count), 9);
+
+			// 6) Записуємо новий вміст у файл в UTF-8
+			TFile::WriteAllText("id.pas", newFile, TEncoding::UTF8);
+
+			// 7) Відновлюємо дату останньої модифікації
+			TDateTime dt(EncodeDate(1992, 10, 22));
+            TFile::SetCreationTime("id.pas", dt);
+			TFile::SetLastWriteTime("id.pas", dt);
+			// UnicodeString msg = "count = " + IntToStr(count);
+			// ShowMessage(msg);
+
+		}
+		else {
+			ShowMessage("file was edited, can not open!");
+			Application->Terminate();
+			// ExitProcess(0);   // повністю вбиває процес
+
+		}
+	}
+    return count;
+}
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+
+int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int) {
+	try {
+		int def = Load_file();
+		Application->Initialize();
+		Application->MainFormOnTaskBar = true;
+		Application->CreateForm(__classid(TForm1), &Form1);
+		Form1->SetStartupValue(def);
+		Application->CreateForm(__classid(TForm2), &Form2);
+		Application->Run();
+	}
+	catch (Exception &exception) {
+		Application->ShowException(&exception);
+	}
+	catch (...) {
+		try {
+			throw Exception("");
+		}
+		catch (Exception &exception) {
+			Application->ShowException(&exception);
+		}
+	}
+	return 0;
+}
+// ---------------------------------------------------------------------------

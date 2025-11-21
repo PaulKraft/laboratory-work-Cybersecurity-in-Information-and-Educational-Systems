@@ -1,0 +1,783 @@
+﻿//---------------------------------------------------------------------------
+
+#include <vcl.h>
+#pragma hdrstop
+
+#include "Unit1.h"
+
+#include <System.IOUtils.hpp>
+
+
+#include <ShlObj.h>
+#include <ShellAPI.hpp>
+
+#include <Windows.h>
+
+#include <IdHashSHA.hpp>
+#include <IdGlobal.hpp>
+#include <memory>   // для std::unique_ptr
+
+#include <System.NetEncoding.hpp>
+
+#include <Wincrypt.h>
+#include <Registry.hpp>   // TRegistry
+
+//---------------------------------------------------------------------------
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+
+#pragma comment(lib, "Crypt32.lib")
+
+TForm1* Form1;
+
+
+
+UnicodeString SelectFolder()
+{
+    IFileDialog *pfd = NULL;
+
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(&pfd))))
+        return "";
+
+    DWORD options;
+    pfd->GetOptions(&options);
+    pfd->SetOptions(options | FOS_PICKFOLDERS);  // ← IMPORTANT
+
+    if (SUCCEEDED(pfd->Show(NULL)))
+    {
+        IShellItem *psi;
+        if (SUCCEEDED(pfd->GetResult(&psi)))
+        {
+            PWSTR pszPath;
+            psi->GetDisplayName(SIGDN_FILESYSPATH, &pszPath);
+
+            UnicodeString folder = pszPath;
+            CoTaskMemFree(pszPath);
+            psi->Release();
+            pfd->Release();
+            return folder;
+        }
+    }
+
+    pfd->Release();
+    return "";
+}
+///////////////////////////
+UnicodeString GetUserNameSimple()
+{
+	wchar_t buffer[256];
+	DWORD size = 256;
+	GetUserNameW(buffer, &size);
+	return ("User Name: " +UnicodeString(buffer));
+}
+
+UnicodeString GetComputerNameSimple()
+{
+	wchar_t buffer[256];
+	DWORD size = 256;
+
+	if (GetComputerNameW(buffer, &size))
+		return ("Compuetr Name: " + UnicodeString(buffer));
+
+	return "";
+}
+UnicodeString GetWindowsFolder()
+{
+	wchar_t buffer[MAX_PATH];
+	UINT len = GetWindowsDirectoryW(buffer, MAX_PATH);
+	return  ("Windows dirictory: " + UnicodeString(buffer));
+}
+
+UnicodeString GetSystem32Folder()
+{
+	wchar_t buffer[MAX_PATH];
+	UINT len = GetSystemDirectoryW(buffer, MAX_PATH);
+	return ("system dirictory: " + UnicodeString(buffer));
+}
+
+
+#include <Windows.h>
+
+UnicodeString DecodeKeyboardType(int type)
+{
+	switch (type)
+	{
+		case 1:  return "IBM PC/XT або AT";
+		case 2:  return "Olivetti keyboard";
+		case 3:  return "IBM 101/102-клавішна";
+		case 4:  return "Nokia 1050";
+		case 5:  return "Nokia 9140";
+		case 6:  return "Japanese keyboard";
+		case 7:  return "Korean keyboard";
+		case 81: return "USB HID keyboard";;
+		default: return "Unknown type (" + IntToStr(type) + ")";
+	}
+}
+
+UnicodeString DecodeKeyboardSubtype(int subtype)
+{
+	switch (subtype)
+	{
+		case 0:  return "Generic ";
+		case 1:  return "Manufacturer specific";
+		default: return "Unknown subtype (" + IntToStr(subtype) + ")";
+	}
+}
+
+UnicodeString DecodeFunctionKeys(int fnCount)
+{
+	switch (fnCount)
+	{
+		case 12: return "12 function keys (F1–F12)";
+		case 10: return "10 function keys (old style)";
+		default: return IntToStr(fnCount) + " function keys";
+	}
+}
+
+
+UnicodeString  GetKeyboardType(){
+
+	int type    = GetKeyboardType(0);
+	int subtype = GetKeyboardType(1);
+	int fnKeys  = GetKeyboardType(2);
+
+	UnicodeString msg;
+	msg += "Keyboard Type:       " + DecodeKeyboardType(type);
+	msg += "Keyboard Subtype:    " + DecodeKeyboardSubtype(subtype);
+//	msg += "Function Keys:     " + DecodeFunctionKeys(fnKeys);
+
+	return msg;
+}
+
+UnicodeString GetRamSize(){
+
+	MEMORYSTATUSEX statex;
+	statex.dwLength = sizeof(statex);
+
+	if (GlobalMemoryStatusEx(&statex))
+	{
+		// Загальна кількість RAM (в байтах → ГБ)
+		__int64 totalRAM = statex.ullTotalPhys;
+		double totalGB = (double)totalRAM / (1024.0 * 1024.0 * 1024.0);
+
+		// Вільна память
+//        __int64 freeRAM = statex.ullAvailPhys;
+//        double freeGB = (double)freeRAM / (1024.0 * 1024.0 * 1024.0);
+
+		UnicodeString info;
+		info += "all RAM: " + FloatToStrF(totalRAM, ffFixed, 17, 0) + " GByte";
+//		info += "all RAM: " + FloatToStrF(totalGB, ffFixed, 10, 2) + " GB\n";
+//		info += "Вільна RAM:   " + FloatToStrF(freeGB, ffFixed, 10, 2) + " GB\n";
+//		info += "Використано:  " + IntToStr((int)statex.dwMemoryLoad) + "%";
+
+		return info;
+	}
+	else
+	{
+		return("error access for RAM!");
+	}
+
+
+}
+
+UnicodeString GetDiskSpace(){
+	// Отримуємо шлях до папки, де запущена програма
+	UnicodeString appPath = ExtractFilePath(Application->ExeName);
+
+	// Переводимо в формат WinAPI (WideString → WCHAR*)
+	LPCWSTR path = appPath.w_str();
+
+	// Змінні для дискового простору
+	ULARGE_INTEGER freeBytesAvailable;  // доступно користувачу
+	ULARGE_INTEGER totalBytes;          // загальний обсяг диску
+	ULARGE_INTEGER totalFreeBytes;      // загальний вільний простір
+
+	// Виклик API
+	if (GetDiskFreeSpaceExW(path, &freeBytesAvailable, &totalBytes, &totalFreeBytes))
+	{
+		double totalGB = (double)totalBytes.QuadPart / (1024.0 * 1024.0 * 1024.0);
+//		double totalGB = (double)totalBytes.QuadPart / (1024.0 * 1024.0 * 1024.0);
+//		double freeGB  = (double)totalFreeBytes.QuadPart / (1024.0 * 1024.0 * 1024.0);
+//		double availGB = (double)freeBytesAvailable.QuadPart / (1024.0 * 1024.0 * 1024.0);
+
+		UnicodeString msg;
+		msg = "Disck size: " + FloatToStrF(totalGB, ffFixed, 19, 0) + "GB";
+//		msg += "📀 Диск запуску програми: " + appPath + "\n\n";
+//		msg += "🔹 Загальний обсяг: " + FloatToStrF(totalGB, ffFixed, 10, 2) + " GB\n";
+//		msg += "🔹 Вільно фізично:  " + FloatToStrF(freeGB, ffFixed, 10, 2) + " GB\n";
+//		msg += "🔹 Доступно користувачу: " + FloatToStrF(availGB, ffFixed, 10, 2) + " GB";
+
+		return msg;
+	}
+	else
+	{
+		return "❌error disk size!";
+	}
+}
+
+
+
+
+
+
+UnicodeString GetMonitorHeight(){
+	return ("Monitor height: " + IntToStr(GetSystemMetrics(SM_CYSCREEN)) + " pixels");
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+//UnicodeString BytesToHex(const TIdBytes &bytes)
+//{
+//	UnicodeString result;
+//
+//	for (int i = 0; i < bytes.Length; ++i)
+//		result += IntToHex((int)bytes[i], 2);  // 2 hex-символи на байт
+//
+//	return result;
+//}
+//
+//
+//
+//
+////UnicodeString CalcSHA256_Base64(const UnicodeString &text)
+//UnicodeString CalcSHA256_Hex(const UnicodeString &text)
+//{
+//    std::unique_ptr<TIdHashSHA256> hasher(new TIdHashSHA256());
+//
+//    // UnicodeString → UTF-8 байти
+//    TIdBytes bytes = ToBytes(text, IndyTextEncoding_UTF8());
+//
+//    // Рахуємо хеш
+//    TIdBytes hash = hasher->HashBytes(bytes);
+//
+//    // Перетворюємо байти хешу в HEX-рядок
+//    return BytesToHex(hash).UpperCase();
+//}
+//
+//
+//void SaveTextHashToFile(const UnicodeString &text,
+//                        const UnicodeString &fileName)
+//{
+//    UnicodeString hash = CalcSHA256_Hex(text);
+//    UnicodeString line = hash;
+//
+//    TFile::WriteAllText(fileName, line, TEncoding::UTF8);
+//}
+ ////////////////////////////
+
+
+// void SaveSHA256ToFile(const UnicodeString &text, const UnicodeString &fileName)
+//{
+//    std::unique_ptr<TIdHashSHA256> hasher(new TIdHashSHA256());
+//    TIdBytes raw = ToBytes(text, IndyTextEncoding_UTF8());
+//    TIdBytes hash = hasher->HashBytes(raw);
+//
+//    UnicodeString hex;
+//    for (int i = 0; i < hash.Length; i++)
+//        hex += IntToHex((int)hash[i], 2);
+//
+//    TFile::WriteAllText(fileName, hex, TEncoding::UTF8);
+//}
+//
+//UnicodeString LoadHashFromFile(const UnicodeString &fileName)
+//{
+//    if (!TFile::Exists(fileName))
+//        throw Exception("Файл не знайдено: " + fileName);
+//
+//    return Trim(TFile::ReadAllText(fileName, TEncoding::UTF8));
+//}
+//
+//UnicodeString CalcSHA256_Hex(const UnicodeString &text)
+//{
+//    std::unique_ptr<TIdHashSHA256> hasher(new TIdHashSHA256());
+//    TIdBytes bytes = ToBytes(text, IndyTextEncoding_UTF8());
+//    TIdBytes hash = hasher->HashBytes(bytes);
+//
+//    UnicodeString hex;
+//    for (int i = 0; i < hash.Length; ++i)
+//        hex += IntToHex((int)hash[i], 2);
+//    return hex;
+//}
+//
+//bool CheckHashWithStored(const UnicodeString &text, const UnicodeString &fileName)
+//{
+////	UnicodeString storedHash = LoadHashFromFile(fileName);
+////	UnicodeString newHash = CalcSHA256_Hex(text);
+//	bool	chek =  LoadHashFromFile(fileName) == CalcSHA256_Hex(text);
+//	bool	chek =  LoadHashFromFile(fileName) == Null;
+//	return chek;
+//}
+
+
+
+///////////////?
+//UnicodeString CalcSHA1_Base64(const UnicodeString &text)
+//{
+//	std::unique_ptr<TIdHashSHA1> hasher(new TIdHashSHA1());
+//    TIdBytes bytes = ToBytes(text, IndyTextEncoding_UTF8());
+//
+////>
+//	   ShowMessage("Text = [" + text + "]");
+//	ShowMessage("Text length = " + IntToStr(text.Length()));
+//
+////	TIdBytes bytes = ToBytes(text, IndyTextEncoding_UTF8());
+//	ShowMessage("Bytes length = " + IntToStr(bytes.Length));
+////>
+//
+//	TIdBytes hash = hasher->HashBytes(bytes);
+// //>
+//      ShowMessage("Hash length = " + IntToStr(hash.Length));
+//
+////	if (hash.Length == 32)
+////		ShowMessage("✓ SHA-256 OK");
+////	else
+////		ShowMessage("⚠️ NOT SHA256! (Wrong input or hasher)");
+////>
+//
+//	System::DynamicArray<System::Byte> arr;
+//	arr.Length = hash.Length;
+//	for (int i = 0; i < hash.Length; ++i)
+//		arr[i] = hash[i];
+//
+//    return (arr.Length > 0)
+//		? TNetEncoding::Base64->EncodeBytesToString(&arr[0], arr.Length)
+//		: "";
+//}
+
+
+
+
+
+///////////////?
+
+
+UnicodeString BytesToHex(const TIdBytes &bytes)
+{
+    UnicodeString result;
+    for (int i = 0; i < bytes.Length; ++i)
+        result += IntToHex((int)bytes[i], 2);
+    return result.UpperCase(); // У верхньому регістрі для надійного порівняння
+}
+
+UnicodeString CalcSHA1_Hex(const UnicodeString &text)
+{
+    std::unique_ptr<TIdHashSHA1> hasher(new TIdHashSHA1());
+
+    // Конвертація тексту в UTF-8 байти
+    TIdBytes input = ToBytes(text, IndyTextEncoding_UTF8());
+
+    // Генерація SHA-1
+    TIdBytes hash = hasher->HashBytes(input);
+
+    // Конвертація в HEX
+    return BytesToHex(hash);
+}
+
+//////////////////////--->
+
+
+UnicodeString BytesToHexReg(const BYTE* data, DWORD len)
+{
+	UnicodeString res;
+	for (DWORD i = 0; i < len; ++i)
+		res += IntToHex((int)data[i], 2);
+	return res.UpperCase();
+}
+
+// HEX-рядок → байти (для перевірки підпису)
+bool HexToBytesReg(const UnicodeString &hex, BYTE* &outData, DWORD &outLen)
+{
+	int hexLen = hex.Length();
+	if (hexLen % 2 != 0) return false;
+
+	outLen = hexLen / 2;
+	outData = new BYTE[outLen];
+
+	for (int i = 0; i < outLen; ++i)
+    {
+		UnicodeString pair = L"0x" + hex.SubString(i * 2 + 1, 2);
+		outData[i] = (BYTE)StrToInt(pair);
+	}
+	return true;
+}
+
+
+bool GetOrCreateUserKey(HCRYPTPROV &hProv)
+{
+	UnicodeString container = L"Software\\Kravchenko"; // можна замінити на своє
+
+    // Спробуємо відкрити існуючий контейнер
+	if (!CryptAcquireContextW(&hProv,
+                              container.c_str(),
+                              NULL,
+                              PROV_RSA_FULL,
+                              0))
+    {
+        // Якщо контейнера нема — створюємо новий
+        if (GetLastError() == NTE_BAD_KEYSET)
+        {
+            if (!CryptAcquireContextW(&hProv,
+                                      container.c_str(),
+                                      NULL,
+                                      PROV_RSA_FULL,
+                                      CRYPT_NEWKEYSET))
+                return false;
+        }
+        else
+            return false;
+    }
+
+    // Переконаємось, що є ключ підпису (AT_SIGNATURE)
+    HCRYPTKEY hKey = 0;
+	if (!CryptGetUserKey(hProv, AT_SIGNATURE, &hKey))
+    {
+        // Немає — створюємо
+        if (!CryptGenKey(hProv, AT_SIGNATURE, 0, &hKey))
+        {
+            CryptReleaseContext(hProv, 0);
+            return false;
+        }
+    }
+
+    if (hKey)
+        CryptDestroyKey(hKey);
+
+    return true;
+}
+
+
+bool SignAndSaveToRegistry(const UnicodeString &data)
+{
+    HCRYPTPROV hProv = 0;
+    if (!GetOrCreateUserKey(hProv))
+    {
+        ShowMessage(L"Помилка отримання криптопровайдера/ключа");
+        return false;
+    }
+
+    // 1) Створюємо SHA-1 хеш
+    HCRYPTHASH hHash = 0;
+    if (!CryptCreateHash(hProv, CALG_SHA1, 0, 0, &hHash))
+    {
+        CryptReleaseContext(hProv, 0);
+        return false;
+    }
+
+	AnsiString aData = AnsiString(data);
+    if (!CryptHashData(hHash,
+                       (BYTE*)aData.c_str(),
+                       aData.Length(),
+                       0))
+    {
+        CryptDestroyHash(hHash);
+        CryptReleaseContext(hProv, 0);
+        return false;
+    }
+
+    // 2) Дізнаємось розмір підпису
+    DWORD sigLen = 0;
+    if (!CryptSignHashW(hHash, AT_SIGNATURE, NULL, 0, NULL, &sigLen))
+    {
+        CryptDestroyHash(hHash);
+        CryptReleaseContext(hProv, 0);
+        return false;
+    }
+
+    BYTE *sigBuf = new BYTE[sigLen];
+
+    // 3) Отримуємо сам підпис
+    if (!CryptSignHashW(hHash, AT_SIGNATURE, NULL, 0, sigBuf, &sigLen))
+    {
+        delete[] sigBuf;
+        CryptDestroyHash(hHash);
+        CryptReleaseContext(hProv, 0);
+        return false;
+    }
+
+    CryptDestroyHash(hHash);
+    CryptReleaseContext(hProv, 0);
+
+    // 4) Конвертуємо підпис у HEX-рядок
+	UnicodeString sigHex = BytesToHexReg(sigBuf, sigLen);
+    delete[] sigBuf;
+
+    // 5) Записуємо HEX-підпис у реєстр
+    std::unique_ptr<TRegistry> reg(new TRegistry(KEY_WRITE));
+    reg->RootKey = HKEY_CURRENT_USER;
+
+    // 🔴 ЗАМІНИ "Kravchenko" НА СВОЄ ПРІЗВИЩЕ
+	if (reg->OpenKey(L"Software\\Kravchenko", true))
+    {
+        reg->WriteString(L"Signature", sigHex);
+        reg->CloseKey();
+        return true;
+    }
+    else
+    {
+        ShowMessage(L"Не вдалося відкрити гілку реєстру");
+        return false;
+    }
+}
+
+
+bool LoadFromRegistryAndVerify(const UnicodeString &data)
+{
+    // 1) Читаємо підпис з реєстру
+    std::unique_ptr<TRegistry> reg(new TRegistry(KEY_READ));
+    reg->RootKey = HKEY_CURRENT_USER;
+
+    if (!reg->OpenKeyReadOnly(L"Software\\Kravchenko"))
+    {
+        ShowMessage(L"Розділ реєстру не знайдено");
+        return false;
+    }
+
+    UnicodeString sigHex;
+    try {
+        sigHex = reg->ReadString(L"Signature");
+    }
+    catch (...)
+    {
+        reg->CloseKey();
+        ShowMessage(L"Параметр Signature не знайдено");
+        return false;
+    }
+    reg->CloseKey();
+
+    // 2) Конвертуємо HEX → байти підпису
+    BYTE *sigBuf = nullptr;
+    DWORD sigLen = 0;
+	if (!HexToBytesReg(sigHex, sigBuf, sigLen))
+    {
+        ShowMessage(L"Помилка формату підпису");
+        return false;
+    }
+
+    // 3) Знову готуємо контекст + ключ
+    HCRYPTPROV hProv = 0;
+    if (!GetOrCreateUserKey(hProv))
+    {
+        delete[] sigBuf;
+        ShowMessage(L"Помилка криптопровайдера");
+        return false;
+    }
+
+    // 4) Отримуємо ПУБЛІЧНИЙ ключ (з контейнера)
+    HCRYPTKEY hPubKey = 0;
+    if (!CryptGetUserKey(hProv, AT_SIGNATURE, &hPubKey))
+    {
+        delete[] sigBuf;
+        CryptReleaseContext(hProv, 0);
+        ShowMessage(L"Не вдалося отримати ключ користувача");
+        return false;
+    }
+
+    // 5) Створюємо той самий SHA-1 хеш від data
+    HCRYPTHASH hHash = 0;
+    if (!CryptCreateHash(hProv, CALG_SHA1, 0, 0, &hHash))
+    {
+        CryptDestroyKey(hPubKey);
+        CryptReleaseContext(hProv, 0);
+        delete[] sigBuf;
+        return false;
+    }
+
+    AnsiString aData = AnsiString(data);
+    if (!CryptHashData(hHash,
+                       (BYTE*)aData.c_str(),
+                       aData.Length(),
+                       0))
+    {
+        CryptDestroyHash(hHash);
+        CryptDestroyKey(hPubKey);
+        CryptReleaseContext(hProv, 0);
+        delete[] sigBuf;
+        return false;
+    }
+
+    // 6) Перевіряємо підпис
+    BOOL ok = CryptVerifySignatureW(hHash,
+                                    sigBuf,
+                                    sigLen,
+                                    hPubKey,
+                                    NULL,
+                                    0);
+
+    delete[] sigBuf;
+    CryptDestroyHash(hHash);
+    CryptDestroyKey(hPubKey);
+    CryptReleaseContext(hProv, 0);
+
+    if (ok)
+    {
+        ShowMessage(L"Підпис вірний (дані не змінені)");
+        return true;
+    }
+    else
+    {
+        ShowMessage(L"Підпис НЕ вірний (дані або ключ змінені)");
+        return false;
+    }
+}
+/////////////////////-->
+
+//---------------------------------------------------------------------------
+__fastcall TForm1::TForm1(TComponent* Owner) : TForm(Owner) {}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::Button2Click(TObject* Sender)
+{
+		UnicodeString appPath = ExtractFilePath(Application->ExeName);
+    	UnicodeString sourceFile[3];
+    	sourceFile[0] = appPath +"\\lab-1-2-3\\Project1.exe";
+    	sourceFile[1] = appPath +"\\lab-1-2-3\\Project2.exe";
+		sourceFile[2] = appPath +"\\lab-1-2-3\\Project3.exe";
+		int count = sizeof(sourceFile) / sizeof(sourceFile[0]);
+
+	UnicodeString destFolder = SelectFolder();
+	if (!destFolder.IsEmpty()){
+		ShowMessage(destFolder);
+
+		for (int i = 0; i < count; i++){
+				UnicodeString fileName = "Project" + IntToStr(i+1) + ".exe";
+				UnicodeString target = TPath::Combine(destFolder, fileName);
+				TFile::Copy(sourceFile[i], target, true);
+		}
+
+        ShowMessage("files copied!");
+
+
+	}
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::Button3Click(TObject *Sender)
+{
+
+	devInfo = GetUserNameSimple();
+	devInfo += GetComputerNameSimple();
+	devInfo += GetWindowsFolder();
+	devInfo += GetSystem32Folder();
+	devInfo += GetKeyboardType();
+	devInfo += GetMonitorHeight();
+	devInfo += GetRamSize();
+	devInfo += GetDiskSpace();
+	ShowMessage(devInfo);
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::Button4Click(TObject *Sender)
+{
+	  // можна dynamic, наприклад System info
+
+//	UnicodeString hashStr = CalcSHA1_Base64(devInfo);
+//	TFile::WriteAllText("hash-base64-1.txt", hashStr, TEncoding::UTF8);
+//	UnicodeString dehash = TFile::ReadAllText("hash-base64-1.txt", TEncoding::UTF8);
+//
+//	if(hashStr == dehash ){
+//		  ShowMessage("True hash");
+//	}else{
+//		 ShowMessage("False hash");
+//	}
+
+	UnicodeString text = devInfo; // Вхідні дані
+
+	UnicodeString hash = CalcSHA1_Hex(text);
+	ShowMessage("SHA1: " + hash);
+
+	devHash = hash;
+	// Записуємо в файл
+//	TFile::WriteAllText("sha1.txt", hash, TEncoding::UTF8);
+//
+//	UnicodeString dehash = TFile::ReadAllText("sha1.txt", TEncoding::UTF8);
+////
+//	if(hash == dehash ){
+//		  ShowMessage("True hash");
+//	}else{
+//		 ShowMessage("False hash");
+//	}
+
+}
+//---------------------------------------------------------------------------
+
+
+
+
+
+void __fastcall TForm1::Button6Click(TObject *Sender)
+{
+//	UnicodeString info = devHash; // те, що хешуємо і підписуємо
+	UnicodeString info = devInfo;
+
+
+	if (SignAndSaveToRegistry(info));
+		ShowMessage(L"Підпис збережено у реєстрі");
+}
+//---------------------------------------------------------------------------void __fastcall TForm1::Button10Click(TObject *Sender)
+void __fastcall TForm1::Button10Click(TObject *Sender)
+{
+//       	UnicodeString info = devHash; // має бути ТЕ САМЕ, що підписували
+	UnicodeString info = devInfo;
+
+
+	LoadFromRegistryAndVerify(info);
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::Button1Click(TObject *Sender)
+{
+
+	UnicodeString appPath = ExtractFilePath(Application->ExeName);
+    	UnicodeString sourceFile[3];
+    	sourceFile[0] = appPath +"\\lab-1-2-3\\Project1.exe";
+    	sourceFile[1] = appPath +"\\lab-1-2-3\\Project2.exe";
+		sourceFile[2] = appPath +"\\lab-1-2-3\\Project3.exe";
+		int count = sizeof(sourceFile) / sizeof(sourceFile[0]);
+
+	UnicodeString destFolder = SelectFolder();
+	if (!destFolder.IsEmpty()){
+		ShowMessage(destFolder);
+
+		for (int i = 0; i < count; i++){
+				UnicodeString fileName = "Project" + IntToStr(i+1) + ".exe";
+				UnicodeString target = TPath::Combine(destFolder, fileName);
+				TFile::Copy(sourceFile[i], target, true);
+		}
+
+        ShowMessage("files copied!");
+
+
+	}
+
+	///
+	devInfo = GetUserNameSimple();
+	devInfo += GetComputerNameSimple();
+	devInfo += GetWindowsFolder();
+	devInfo += GetSystem32Folder();
+	devInfo += GetKeyboardType();
+	devInfo += GetMonitorHeight();
+	devInfo += GetRamSize();
+	devInfo += GetDiskSpace();
+//	ShowMessage(devInfo);
+
+	UnicodeString msg1 = GetUserNameSimple();
+	msg1 += "\n"+  GetComputerNameSimple();
+	msg1 += "\n"+  GetWindowsFolder();
+	msg1 += "\n"+  GetSystem32Folder();
+	msg1 += "\n"+  GetKeyboardType();
+	msg1 += "\n"+  GetMonitorHeight();
+	msg1 += "\n"+  GetRamSize();
+	msg1 += "\n"+  GetDiskSpace();
+	ShowMessage(msg1);
+
+	///
+
+	UnicodeString info = devInfo;
+
+
+	if (SignAndSaveToRegistry(info));
+		ShowMessage(L"Підпис збережено у реєстрі");
+
+}
+//---------------------------------------------------------------------------
+

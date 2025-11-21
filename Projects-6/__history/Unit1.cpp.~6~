@@ -1,0 +1,129 @@
+﻿//---------------------------------------------------------------------------
+
+#include <vcl.h>
+#pragma hdrstop
+
+#include "Unit1.h"
+
+
+#include <System.SysUtils.hpp>
+#include <System.Classes.hpp>
+#include <System.IOUtils.hpp>        // TFile, FileExists, ChangeFileExt
+#include <IdHashMessageDigest.hpp>   // TIdHashMessageDigest5 (MD5)
+#include <IdGlobal.hpp>              // TIdBytes
+#include <memory>                    // std::unique_ptr
+//---------------------------------------------------------------------------
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+TForm1 *Form1;
+
+//---------------------------------------------------------------------------
+
+UnicodeString BytesToHex(const TIdBytes &bytes)
+{
+    UnicodeString result;
+    for (int i = 0; i < bytes.Length; ++i)
+        result += IntToHex((int)bytes[i], 2);   // 2 hex-символи на байт
+    return result.UpperCase();
+}
+
+UnicodeString CalcFileMD5(const UnicodeString &fileName)
+{
+    // Об'єкт MD5
+    std::unique_ptr<TIdHashMessageDigest5> md5(new TIdHashMessageDigest5());
+
+    // Відкриваємо файл для читання
+    std::unique_ptr<TFileStream> fs(
+        new TFileStream(fileName, fmOpenRead | fmShareDenyWrite)
+    );
+
+    // Рахуємо MD5 по стріму
+    TIdBytes hash = md5->HashStream(fs.get());
+
+    // Перетворюємо у HEX-рядок
+    return BytesToHex(hash);
+}
+
+void SaveFileMD5(const UnicodeString &fileName)
+{
+    if (!FileExists(fileName))
+    {
+        ShowMessage(L"Файл не знайдено: " + fileName);
+        return;
+    }
+
+    UnicodeString md5 = CalcFileMD5(fileName);
+
+    // Файл контрольної суми — та ж назва, але розширення .md5
+    UnicodeString md5File = ChangeFileExt(fileName, L".md5");
+
+    TFile::WriteAllText(md5File, md5, TEncoding::UTF8);
+
+    ShowMessage(L"MD5 збережено в: " + md5File + L"\n" + md5);
+}
+
+bool VerifyFileMD5(const UnicodeString &fileName)
+{
+    if (!FileExists(fileName))
+    {
+        ShowMessage(L"Файл не знайдено: " + fileName);
+        return false;
+    }
+
+    UnicodeString md5File = ChangeFileExt(fileName, L".md5");
+
+    if (!FileExists(md5File))
+    {
+        ShowMessage(L"Файл контрольної суми не знайдено: " + md5File);
+        return false;
+    }
+
+    // Зчитуємо раніше збережену суму
+    UnicodeString storedMD5 = Trim(TFile::ReadAllText(md5File, TEncoding::UTF8)).UpperCase();
+
+    // Рахуємо поточну суму
+    UnicodeString currentMD5 = CalcFileMD5(fileName).UpperCase();
+
+    if (storedMD5 == currentMD5)
+    {
+        ShowMessage(L"✔ Файл НЕ змінювався.\nMD5 True: " + currentMD5);
+        return true;
+    }
+    else
+    {
+        ShowMessage(
+            L"⛔ Файл ЗМІНЕНО!\n" +
+            L"Очікувано: " + storedMD5 + L"\n" +
+            L"Поточне:  " + currentMD5
+        );
+        return false;
+    }
+}
+
+
+
+
+//---------------------------------------------------------------------------
+__fastcall TForm1::TForm1(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::Button1Click(TObject *Sender)
+{
+	if (OpenDialog1->Execute())
+    {
+        UnicodeString fileName = OpenDialog1->FileName;
+        SaveFileMD5(fileName);
+    }
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::Button2Click(TObject *Sender)
+{
+      if (OpenDialog1->Execute())
+    {
+        UnicodeString fileName = OpenDialog1->FileName;
+        VerifyFileMD5(fileName);
+    }
+}
+//---------------------------------------------------------------------------

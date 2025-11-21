@@ -1,0 +1,10 @@
+PS C:\Windows\system32> Get-CimInstance Win32_DiskDrive |
+>>     Where-Object {$_.InterfaceType -eq "USB"} |
+>>     Select-Object Model, SerialNumber
+
+Model                               SerialNumber
+-----                               ------------
+UFD 2.0 Silicon-Power16G USB Device AA00000000000485
+
+
+PS C:\Windows\system32>
